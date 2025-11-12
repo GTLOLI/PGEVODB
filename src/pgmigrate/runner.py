@@ -205,7 +205,10 @@ class MigrationRunner:
         timeout = self._timeout_for(migration)
         try:
             with conn.cursor() as cur:
-                cur.execute("SET LOCAL statement_timeout = %s", (f"{int(max(timeout, 0) * 1000)}ms",))
+                cur.execute(
+                    "SELECT set_config('statement_timeout', %s, true)",
+                    (f"{int(max(timeout, 0) * 1000)}ms",),
+                )
                 cur.execute(sql_text)
             return True, None
         except Exception as exc:  # noqa: BLE001
@@ -372,7 +375,10 @@ class MigrationRunner:
         timeout_ms = max(timeout, 0) * 1000
         log(f"Executing {path.name} with timeout {timeout}s")
         with conn.cursor() as cur:
-            cur.execute("SET LOCAL statement_timeout = %s", (f"{int(timeout_ms)}ms",))
+            cur.execute(
+                "SELECT set_config('statement_timeout', %s, true)",
+                (f"{int(timeout_ms)}ms",),
+            )
             cur.execute(sql_text)
 
     def _run_hooks(self, hooks: Sequence[str], log) -> None:
