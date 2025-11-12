@@ -1,0 +1,9 @@
+# meta.yaml
+# 示例元数据文件，控制迁移执行行为
+timeout_sec: 600        # 覆盖默认超时时间（秒）
+online_safe: true       # 指出该迁移采用低锁策略
+reversible: true        # 表明 down.sql 可安全回退
+tags: ["expand"]        # 标签用于计划/执行过滤
+requires: []            # 若存在依赖迁移，可在此列出
+pre_hooks: []           # 迁移前额外执行的命令（此处留空）
+post_hooks: []          # 迁移后额外执行的命令（此处留空）
