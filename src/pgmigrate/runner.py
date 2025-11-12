@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Dict, Iterator, List, Optional, Sequence, Tuple
 
 import psycopg
-from psycopg import sql
 
 from . import db
 from .config import ProfileConfig
@@ -43,7 +42,7 @@ class MigrationRunner:
         try:
             conn.autocommit = False
             with conn.cursor() as cur:
-                cur.execute(sql.SQL("SET application_name = {}").format(sql.Literal(self.app_name)))
+                cur.execute("SET application_name = %s", (self.app_name,))
             yield conn
         finally:
             conn.close()
