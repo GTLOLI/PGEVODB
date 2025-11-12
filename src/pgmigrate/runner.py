@@ -38,11 +38,15 @@ class MigrationRunner:
 
     @contextlib.contextmanager
     def connect(self) -> Iterator[psycopg.Connection]:
+        from psycopg import sql
+
         conn = db.get_connection(self.profile.dsn)
         try:
             conn.autocommit = False
             with conn.cursor() as cur:
-                cur.execute("SET application_name = %s", (self.app_name,))
+                cur.execute(
+                    sql.SQL("SET application_name = {}").format(sql.Literal(self.app_name))
+                )
             yield conn
         finally:
             conn.close()
