@@ -44,21 +44,23 @@ def ensure_schema_migrations(conn: psycopg.Connection, schema: str) -> None:
                 """
             ).format(_table(schema))
         )
+        unique_index = sql.Identifier(f"idx_{schema}_schema_migrations_migration_id")
+        status_index = sql.Identifier(f"idx_{schema}_schema_migrations_status")
         cur.execute(
             sql.SQL(
                 """
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_{0}_migration_id
-                    ON {1} (migration_id)
+                CREATE UNIQUE INDEX IF NOT EXISTS {index_name}
+                    ON {table} (migration_id)
                 """
-            ).format(sql.Identifier(f"{schema}_schema_migrations_migration_id"), _table(schema))
+            ).format(index_name=unique_index, table=_table(schema))
         )
         cur.execute(
             sql.SQL(
                 """
-                CREATE INDEX IF NOT EXISTS idx_{0}_status
-                    ON {1} (status)
+                CREATE INDEX IF NOT EXISTS {index_name}
+                    ON {table} (status)
                 """
-            ).format(sql.Identifier(f"{schema}_schema_migrations_status"), _table(schema))
+            ).format(index_name=status_index, table=_table(schema))
         )
 
 
