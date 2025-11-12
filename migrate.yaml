@@ -1,0 +1,28 @@
+# migrate.yaml
+# PostgreSQL SQL 迁移工具示例配置（所有参数均附中文注释）
+profiles:  # 各环境（profile）配置集合
+  dev:  # 开发环境示例
+    dsn: "postgresql://dev_user:dev_pass@127.0.0.1:5432/devdb"  # 连接到 PostgreSQL 的 DSN 字符串
+    schema: "public"  # 用于存放 schema_migrations 表的 schema 名称
+    app_env: "dev"  # 环境标识，影响日志与提示信息
+    confirm_prod: false  # 是否在执行前要求额外确认（生产环境建议 true）
+  staging:  # 预发布环境示例
+    dsn: "postgresql://staging_user:xxx@staging.db.internal:5432/stagingdb"  # 预发布数据库 DSN
+    schema: "public"  # schema_migrations 表所在的 schema
+    app_env: "staging"  # 环境标识
+    confirm_prod: true  # 执行前需要确认，防止误操作
+  prod:  # 生产环境示例
+    dsn: "postgresql://prod_user:xxx@prod.db.internal:5432/proddb"  # 生产数据库 DSN（建议使用安全凭证管理）
+    schema: "public"  # schema_migrations 表所在的 schema
+    app_env: "prod"  # 环境标识
+    confirm_prod: true  # 强制执行前确认，避免误删数据
+
+default_profile: dev  # CLI 未显式指定 --env 时使用的默认 profile
+
+global:  # 全局通用参数，可被 profile 局部覆盖
+  migrations_dir: "./migrations"  # 存放 SQL 迁移目录的相对路径
+  log_dir: "./.migrate-logs"  # 迁移执行日志输出目录
+  lock_key: 732161886195405824  # PostgreSQL advisory lock 的 64 位整数键，防止并发执行
+  timeout_sec: 600  # 默认迁移执行超时时间（秒）
+  allow_tags: ["expand", "datafix"]  # 允许运行的迁移类型标签
+  interactive: true  # 是否允许 CLI 交互确认（CI 环境可设为 false）
