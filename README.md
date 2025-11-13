@@ -61,7 +61,7 @@ python -m pgmigrate.cli [全局参数] <命令> [命令参数]
 | `migrate plan [--to <id>]` | 按顺序列出即将执行的迁移。 |
 | `migrate up [--to <id>] [--non-interactive]` | 执行待定迁移到指定版本或最新。 |
 | `migrate down --to <id> [--non-interactive]` | 逆序回退至目标版本（包含）。 |
-| `migrate verify [--latest|--id <id>]` | 独立运行 `verify.sql` 做审计。 |
+| `migrate verify <id> ` | 独立运行 `verify.sql` 做审计。 |
 | `migrate repair --accept-checksum <id>` | 在人工确认后更新校验和。 |
 | `migrate retry --id <id> [--accept-checksum] [--force] [--non-interactive]` | 重置失败迁移并按顺序重新执行到该版本。 |
 | `migrate reset-failed --id <id> [--delete] [--non-interactive]` | 仅调整 `schema_migrations` 状态（可删除或置为 reverted）。 |
