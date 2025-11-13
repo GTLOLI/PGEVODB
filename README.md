@@ -101,6 +101,34 @@ python -m pgmigrate.cli [全局参数] <命令> [命令参数]
   * 使用 `--delete` 时，会直接删除对应记录，使其看起来像从未执行过。
   * 同样支持交互确认控制，适合在处理失败记录或准备手动恢复时使用。
 
+### 不能在事务块内执行的命令（注意）
+
+PGEVODB 默认在执行 `up.sql` 时使用事务（`autocommit = false`）。因此请**不要**在 `up.sql` 中放置任何可能 **在事务块内报错** 的 PostgreSQL 命令，例如（常见、非穷尽）：
+
+- `CREATE INDEX CONCURRENTLY ...` / `DROP INDEX CONCURRENTLY ...`
+- `REFRESH MATERIALIZED VIEW CONCURRENTLY ...`
+- `REINDEX` / `REINDEX TABLE` / `REINDEX DATABASE`
+- `CREATE DATABASE ...` / `DROP DATABASE ...`
+- `CREATE TABLESPACE ...` / `DROP TABLESPACE ...`
+- `VACUUM` / `VACUUM FULL`（请参照所用 PostgreSQL 版本文档）
+- `CLUSTER ...`
+- `ALTER SYSTEM ...`
+- 以及其它带 `CONCURRENTLY` 的并发变种或某些维护/管理命令
+
+**处理建议：**
+- 对于上面这些命令，请通过外部脚本在非事务上下文执行（例如用 `psql -c "CREATE INDEX CONCURRENTLY ..."`），或在 `meta.yaml` 的 `pre_hooks` / `post_hooks` 中调用外部脚本，或由运维在维护窗口手动运行。  
+- 使用 `verify.sql` 做事后校验（PGEVODB 支持 `verify.sql` 且会为其设置 `statement_timeout`）。  
+- 本清单为常见命令示例，**并非穷尽**；实际以你所使用 PostgreSQL 版本的官方文档为准。
+
+示例：在 `meta.yaml` 中使用 pre-hook 启动并发索引脚本：
+```yaml
+timeout_sec: 7200
+online_safe: true
+pre_hooks:
+  - "./scripts/create-concurrent-index.sh"
+
+
+
 ## 开发与调试
 
 1. 准备 Python 环境并安装依赖（需要 `psycopg` 与 `PyYAML`）。
