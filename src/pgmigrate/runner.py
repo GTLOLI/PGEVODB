@@ -28,6 +28,7 @@ class MigrationRunner:
         self.confirm_override = confirm_override
         self.migrations = load_migrations(profile.migrations_dir)
         require_sequential(self.migrations)
+        self._skip_next_confirmation = False
 
     def _timeout_for(self, migration: MigrationDefinition) -> int:
         if migration.meta.timeout_sec is not None:
@@ -129,6 +130,94 @@ class MigrationRunner:
             db.repair_checksum(conn, self.profile.schema, migration_id, migration.checksum)
             conn.commit()
 
+    def retry(self, migration_id: str, accept_checksum: bool, force: bool, non_interactive: bool) -> None:
+        migration = self._find_migration(migration_id)
+        with self.connect() as conn:
+            states = self._ensure(conn)
+            state = states.get(migration_id)
+            if not state:
+                raise MigrationRunnerError(
+                    f"Migration {migration_id} not found in schema_migrations; cannot retry"
+                )
+            if state.status == "applied":
+                print(f"Migration {migration_id} is already applied; nothing to retry")
+                return
+            if state.status == "running" and not force:
+                raise MigrationRunnerError(
+                    f"Migration {migration_id} is currently marked running; use --force if you are certain it is safe"
+                )
+            if state.status == "running" and force:
+                print(
+                    f"Warning: forcing retry for migration {migration_id} while status is running; ensure no other process is active"
+                )
+            if state.checksum != migration.checksum:
+                if not accept_checksum:
+                    raise MigrationRunnerError(
+                        "Migration checksum differs from filesystem; rerun with --accept-checksum to repair"
+                    )
+                db.repair_checksum(conn, self.profile.schema, migration_id, migration.checksum)
+                conn.commit()
+            message = (
+                f"Reset migration {migration_id} to retry? This will mark it as reverted and re-run pending migrations up to it."
+            )
+            self._confirm_action(
+                message,
+                non_interactive,
+                action_description=f"Reset status for {migration_id} and retry",
+            )
+            db.update_status_fields(
+                conn,
+                self.profile.schema,
+                migration_id,
+                status="reverted",
+                applied_at=None,
+                applied_by=None,
+                execution_ms=None,
+                verify_ok=None,
+            )
+            conn.commit()
+        previous_skip = self._skip_next_confirmation
+        try:
+            self._skip_next_confirmation = True
+            self.apply(target=migration_id, non_interactive=non_interactive)
+        finally:
+            self._skip_next_confirmation = previous_skip
+
+    def reset_failed(self, migration_id: str, delete: bool, non_interactive: bool) -> None:
+        with self.connect() as conn:
+            states = self._ensure(conn)
+            state = states.get(migration_id)
+            if not state:
+                raise MigrationRunnerError(
+                    f"Migration {migration_id} not found in schema_migrations; cannot reset"
+                )
+            action = "delete" if delete else "reset"
+            message = (
+                f"About to {action} failure record for {migration_id}. This does not run any migrations. Proceed?"
+            )
+            self._confirm_action(
+                message,
+                non_interactive,
+                action_description=("Delete record" if delete else "Reset failed status"),
+            )
+            if delete:
+                db.delete_state(conn, self.profile.schema, migration_id)
+                conn.commit()
+                print(f"Removed migration {migration_id} from schema_migrations")
+            else:
+                db.update_status_fields(
+                    conn,
+                    self.profile.schema,
+                    migration_id,
+                    status="reverted",
+                    applied_at=None,
+                    applied_by=None,
+                    execution_ms=None,
+                    verify_ok=None,
+                )
+                conn.commit()
+                print(f"Reset migration {migration_id} status to reverted")
+
     # --- helpers ---
 
     def _find_migration(self, migration_id: str) -> MigrationDefinition:
@@ -215,6 +304,19 @@ class MigrationRunner:
             return False, str(exc)
 
     def _confirm_execution(self, count: int, direction: str, non_interactive: bool) -> None:
+        env = self.profile.app_env or self.profile.name or "current"
+        message = f"About to run {count} migration(s) {direction} in environment {env}."
+        self._confirm_action(message, non_interactive, action_description=f"Apply {count} migration(s) {direction}")
+
+    def _confirm_action(
+        self,
+        message: str,
+        non_interactive: bool,
+        action_description: Optional[str] = None,
+    ) -> None:
+        if self._skip_next_confirmation:
+            self._skip_next_confirmation = False
+            return
         if self.profile.confirm_prod and self.confirm_override:
             return
         if non_interactive or not self.profile.interactive:
@@ -222,15 +324,13 @@ class MigrationRunner:
                 raise MigrationRunnerError("Production execution requires --confirm-prod in non-interactive mode")
             return
         if self.profile.confirm_prod:
-            prompt = (
-                f"About to run {count} migration(s) {direction} in environment {self.profile.app_env or self.profile.name}."
-                " Type the database schema name to confirm: "
-            )
+            prompt = f"{message} Type the database schema name to confirm: "
             response = input(prompt)
             if response.strip() != self.profile.schema:
                 raise MigrationRunnerError("Confirmation failed; aborting")
         else:
-            prompt = f"Apply {count} migration(s) {direction}? [y/N]: "
+            description = action_description or message
+            prompt = f"{description}? [y/N]: "
             response = input(prompt)
             if response.strip().lower() not in {"y", "yes"}:
                 raise MigrationRunnerError("User aborted execution")

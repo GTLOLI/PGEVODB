@@ -54,6 +54,30 @@ def build_parser() -> argparse.ArgumentParser:
     repair = sub.add_parser("repair", help="Repair checksum for a migration")
     repair.add_argument("--accept-checksum", dest="migration_id", required=True, help="Migration id to repair")
 
+    retry = sub.add_parser("retry", help="Retry a failed migration")
+    retry.add_argument("--id", dest="migration_id", required=True, help="Migration id to retry")
+    retry.add_argument(
+        "--accept-checksum",
+        dest="accept_checksum",
+        action="store_true",
+        help="Repair checksum automatically when filesystem differs",
+    )
+    retry.add_argument(
+        "--force",
+        dest="force",
+        action="store_true",
+        help="Override running status check (use with caution)",
+    )
+
+    reset_failed = sub.add_parser("reset-failed", help="Reset or delete failed migration records")
+    reset_failed.add_argument("--id", dest="migration_id", required=True, help="Migration id to reset")
+    reset_failed.add_argument(
+        "--delete",
+        dest="delete",
+        action="store_true",
+        help="Delete the migration entry instead of marking it reverted",
+    )
+
     return parser
 
 
@@ -134,6 +158,36 @@ def run_repair(runner: MigrationRunner, migration_id: str) -> int:
     return 0
 
 
+def run_retry(
+    runner: MigrationRunner,
+    migration_id: str,
+    accept_checksum: bool,
+    force: bool,
+    non_interactive: bool,
+) -> int:
+    runner.retry(
+        migration_id=migration_id,
+        accept_checksum=accept_checksum,
+        force=force,
+        non_interactive=non_interactive,
+    )
+    return 0
+
+
+def run_reset_failed(
+    runner: MigrationRunner,
+    migration_id: str,
+    delete: bool,
+    non_interactive: bool,
+) -> int:
+    runner.reset_failed(
+        migration_id=migration_id,
+        delete=delete,
+        non_interactive=non_interactive,
+    )
+    return 0
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -154,6 +208,21 @@ def main(argv: Optional[list[str]] = None) -> int:
             return run_verify(runner, args.latest, args.migration_id)
         if command == "repair":
             return run_repair(runner, args.migration_id)
+        if command == "retry":
+            return run_retry(
+                runner,
+                args.migration_id,
+                args.accept_checksum,
+                args.force,
+                args.non_interactive,
+            )
+        if command == "reset-failed":
+            return run_reset_failed(
+                runner,
+                args.migration_id,
+                args.delete,
+                args.non_interactive,
+            )
         parser.error("Unknown command")
     except (ConfigError, MigrationRunnerError, DatabaseError, MigrationFormatError) as exc:
         print(f"Error: {exc}", file=sys.stderr)

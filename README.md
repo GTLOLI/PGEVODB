@@ -63,6 +63,8 @@ python -m pgmigrate.cli [全局参数] <命令> [命令参数]
 | `migrate down --to <id> [--non-interactive]` | 逆序回退至目标版本（包含）。 |
 | `migrate verify [--latest|--id <id>]` | 独立运行 `verify.sql` 做审计。 |
 | `migrate repair --accept-checksum <id>` | 在人工确认后更新校验和。 |
+| `migrate retry --id <id> [--accept-checksum] [--force] [--non-interactive]` | 重置失败迁移并按顺序重新执行到该版本。 |
+| `migrate reset-failed --id <id> [--delete] [--non-interactive]` | 仅调整 `schema_migrations` 状态（可删除或置为 reverted）。 |
 
 全局参数说明：
 
@@ -83,6 +85,21 @@ python -m pgmigrate.cli [全局参数] <命令> [命令参数]
 * **全局锁**：使用 `pg_try_advisory_lock` 防止多进程并发迁移。
 * **日志与验证**：每次执行生成独立日志文件，支持可选的 `verify.sql` 校验。
 * **安全回退**：对不可逆迁移在回退时硬性阻断。
+
+### 失败处理命令
+
+* `migrate retry`：
+  * 会确认本地是否存在对应迁移目录，并读取数据库中的状态。
+  * 若迁移已应用则直接返回；若仍标记为 `running`，除非显式 `--force`，否则阻止执行。
+  * 检测到校验和不一致时，需要显式添加 `--accept-checksum`（会自动调用 repair 逻辑）。
+  * 重置状态为 `reverted` 并清空 `applied_at/applied_by/execution_ms/verify_ok` 后，按顺序重新执行直到包含目标迁移。
+  * 默认要求交互确认，可通过 `--non-interactive` 配合 `--confirm-prod` 在 CI 中运行。
+
+* `migrate reset-failed`：
+  * 仅修改 `schema_migrations`，不会执行任何 SQL 迁移。
+  * 默认把状态重置为 `reverted` 并清空执行相关字段，同时保留 `checksum`/`log_ref` 以便审计。
+  * 使用 `--delete` 时，会直接删除对应记录，使其看起来像从未执行过。
+  * 同样支持交互确认控制，适合在处理失败记录或准备手动恢复时使用。
 
 ## 开发与调试
 

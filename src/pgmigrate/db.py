@@ -156,6 +156,16 @@ def update_status_fields(
             raise DatabaseError(f"Migration {migration_id} not found for status update")
 
 
+def delete_state(conn: psycopg.Connection, schema: str, migration_id: str) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            sql.SQL("DELETE FROM {} WHERE migration_id = %s").format(_table(schema)),
+            (migration_id,),
+        )
+        if cur.rowcount == 0:
+            raise DatabaseError(f"Migration {migration_id} not found for deletion")
+
+
 @contextlib.contextmanager
 def advisory_lock(conn: psycopg.Connection, lock_key: int) -> Iterator[None]:
     with conn.cursor() as cur:
