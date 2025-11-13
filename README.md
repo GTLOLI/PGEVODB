@@ -53,34 +53,6 @@ global:
 python -m pgmigrate.cli [全局参数] <命令> [命令参数]
 ```
 
-常见用法
-
-```
-# 查看状态（使用默认 migrate.yaml 的 default_profile）
-python -m pgmigrate.cli status
-
-# 预览将要执行的迁移
-python -m pgmigrate.cli plan
-
-# 执行所有待执行迁移（交互式）
-python -m pgmigrate.cli up
-
-# 非交互式执行并显式确认生产（CI 场景）
-python -m pgmigrate.cli --non-interactive --confirm-prod up
-
-# 回退到某个 migration id（例如 2025-11-12T10-15-30__add_email_to_users）
-python -m pgmigrate.cli down --to 2025-11-12T10-15-30__add_email_to_users
-
-# 运行验证脚本（latest 或指定 id）
-python -m pgmigrate.cli verify --latest
-python -m pgmigrate.cli verify --id 2025-11-12T10-15-30__add_email_to_users
-
-# 修复校验和（人工确认）
-python -m pgmigrate.cli repair --accept-checksum 2025-11-12T10-15-30__add_email_to_users
-
-```
-
-
 常用命令：
 
 | 命令 | 说明 |
