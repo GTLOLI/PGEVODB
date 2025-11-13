@@ -5,5 +5,7 @@ online_safe: true       # 指出该迁移采用低锁策略
 reversible: true        # 表明 down.sql 可安全回退
 tags: ["expand"]        # 标签用于计划/执行过滤
 requires: []            # 若存在依赖迁移，可在此列出
-pre_hooks: []           # 迁移前额外执行的命令（此处留空）
-post_hooks: []          # 迁移后额外执行的命令（此处留空）
+pre_hooks:
+  - "./scripts/start-index-build.sh"   # 可选：外部并行任务
+post_hooks:
+  - "./scripts/finish-index-check.sh"
