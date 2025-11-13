@@ -126,7 +126,7 @@ timeout_sec: 7200
 online_safe: true
 pre_hooks:
   - "./scripts/create-concurrent-index.sh"
-
+```
 
 
 ## 开发与调试
