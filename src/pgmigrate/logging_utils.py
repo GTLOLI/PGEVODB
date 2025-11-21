@@ -1,4 +1,4 @@
-"""Logging helpers for migration runs."""
+"""迁移运行的日志辅助工具。"""
 from __future__ import annotations
 
 import contextlib

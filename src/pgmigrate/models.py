@@ -1,4 +1,4 @@
-"""Data models used across the migration tool."""
+"""迁移工具中使用的数据模型。"""
 from __future__ import annotations
 
 from dataclasses import dataclass, field

@@ -1,4 +1,4 @@
-"""Database utilities for the migration tool."""
+"""数据库迁移工具的数据库工具。"""
 from __future__ import annotations
 
 import contextlib
@@ -13,7 +13,7 @@ from .models import MigrationDefinition, MigrationState
 
 
 class DatabaseError(RuntimeError):
-    """Raised when database operations fail."""
+    """当数据库操作失败时引发。"""
 
 
 def get_connection(dsn: str) -> psycopg.Connection:
@@ -21,12 +21,13 @@ def get_connection(dsn: str) -> psycopg.Connection:
 
 
 def _table(schema: str) -> sql.Composed:
-    return sql.SQL("{}.{}" ).format(sql.Identifier(schema), sql.Identifier("schema_migrations"))
+    return sql.SQL("{}.{}").format(sql.Identifier(schema), sql.Identifier("schema_migrations"))
 
 
 def ensure_schema_migrations(conn: psycopg.Connection, schema: str) -> None:
     with conn.cursor() as cur:
-        cur.execute(sql.SQL("CREATE SCHEMA IF NOT EXISTS {}" ).format(sql.Identifier(schema)))
+        cur.execute(sql.SQL("CREATE SCHEMA IF NOT EXISTS {}").format(
+            sql.Identifier(schema)))
         cur.execute(
             sql.SQL(
                 """
@@ -44,7 +45,8 @@ def ensure_schema_migrations(conn: psycopg.Connection, schema: str) -> None:
                 """
             ).format(_table(schema))
         )
-        unique_index = sql.Identifier(f"idx_{schema}_schema_migrations_migration_id")
+        unique_index = sql.Identifier(
+            f"idx_{schema}_schema_migrations_migration_id")
         status_index = sql.Identifier(f"idx_{schema}_schema_migrations_status")
         cur.execute(
             sql.SQL(
@@ -66,7 +68,8 @@ def ensure_schema_migrations(conn: psycopg.Connection, schema: str) -> None:
 
 def fetch_states(conn: psycopg.Connection, schema: str) -> Dict[str, MigrationState]:
     with conn.cursor(row_factory=dict_row) as cur:
-        cur.execute(sql.SQL("SELECT * FROM {} ORDER BY migration_id" ).format(_table(schema)))
+        cur.execute(
+            sql.SQL("SELECT * FROM {} ORDER BY migration_id").format(_table(schema)))
         results = {}
         for row in cur.fetchall():
             results[row["migration_id"]] = MigrationState(
@@ -126,11 +129,12 @@ def set_status(
 def repair_checksum(conn: psycopg.Connection, schema: str, migration_id: str, checksum: str) -> None:
     with conn.cursor() as cur:
         cur.execute(
-            sql.SQL("UPDATE {} SET checksum = %s WHERE migration_id = %s" ).format(_table(schema)),
+            sql.SQL("UPDATE {} SET checksum = %s WHERE migration_id = %s").format(
+                _table(schema)),
             (checksum, migration_id),
         )
         if cur.rowcount == 0:
-            raise DatabaseError(f"Migration {migration_id} not found for repair")
+            raise DatabaseError(f"迁移 {migration_id} 未找到，无法修复")
 
 
 def update_status_fields(
@@ -142,7 +146,7 @@ def update_status_fields(
     assignments = []
     values = []
     for key, value in fields.items():
-        assignments.append(sql.SQL("{} = %s" ).format(sql.Identifier(key)))
+        assignments.append(sql.SQL("{} = %s").format(sql.Identifier(key)))
         values.append(value)
     if not assignments:
         return
@@ -153,17 +157,18 @@ def update_status_fields(
     with conn.cursor() as cur:
         cur.execute(query, values)
         if cur.rowcount == 0:
-            raise DatabaseError(f"Migration {migration_id} not found for status update")
+            raise DatabaseError(f"迁移 {migration_id} 未找到，无法更新状态")
 
 
 def delete_state(conn: psycopg.Connection, schema: str, migration_id: str) -> None:
     with conn.cursor() as cur:
         cur.execute(
-            sql.SQL("DELETE FROM {} WHERE migration_id = %s").format(_table(schema)),
+            sql.SQL("DELETE FROM {} WHERE migration_id = %s").format(
+                _table(schema)),
             (migration_id,),
         )
         if cur.rowcount == 0:
-            raise DatabaseError(f"Migration {migration_id} not found for deletion")
+            raise DatabaseError(f"迁移 {migration_id} 未找到，无法删除")
 
 
 @contextlib.contextmanager

@@ -1,4 +1,4 @@
-"""Filesystem loader for migrations."""
+"""迁移的文件系统加载器。"""
 from __future__ import annotations
 
 import hashlib
@@ -11,7 +11,7 @@ from .models import MigrationDefinition, MigrationMeta
 
 
 class MigrationFormatError(RuntimeError):
-    """Raised when a migration directory is invalid."""
+    """当迁移目录无效时引发。"""
 
 
 def _load_meta(path: Path) -> MigrationMeta:
@@ -42,10 +42,10 @@ def _checksum(content: str) -> str:
 
 
 def load_migrations(directory: Path) -> List[MigrationDefinition]:
-    """Load and validate migrations from the filesystem."""
+    """从文件系统加载和验证迁移。"""
 
     if not directory.exists():
-        raise MigrationFormatError(f"Migrations directory does not exist: {directory}")
+        raise MigrationFormatError(f"迁移目录不存在: {directory}")
 
     migrations: List[MigrationDefinition] = []
     for entry in sorted(directory.iterdir()):
@@ -58,9 +58,9 @@ def load_migrations(directory: Path) -> List[MigrationDefinition]:
         meta_yaml = entry / "meta.yaml"
 
         if not up_sql.exists():
-            raise MigrationFormatError(f"Migration {migration_id} missing up.sql")
+            raise MigrationFormatError(f"迁移 {migration_id} 缺少 up.sql")
         if not down_sql.exists():
-            raise MigrationFormatError(f"Migration {migration_id} missing down.sql")
+            raise MigrationFormatError(f"迁移 {migration_id} 缺少 down.sql")
 
         up_content = _read_text(up_sql)
         checksum = _checksum(up_content)
@@ -83,10 +83,10 @@ def load_migrations(directory: Path) -> List[MigrationDefinition]:
 
 
 def require_sequential(migrations: Iterable[MigrationDefinition]) -> None:
-    """Ensure migration directory names are lexicographically sorted already."""
+    """确保迁移目录名称已经按字典序排序。"""
 
     previous: Optional[str] = None
     for migration in migrations:
         if previous and migration.migration_id <= previous:
-            raise MigrationFormatError("Migrations are not ordered strictly ascending")
+            raise MigrationFormatError("迁移没有按严格升序排列")
         previous = migration.migration_id

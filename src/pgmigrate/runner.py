@@ -1,4 +1,4 @@
-"""Core migration execution logic."""
+"""核心迁移执行逻辑。"""
 from __future__ import annotations
 
 import contextlib
@@ -18,7 +18,7 @@ from .logging_utils import migration_log
 
 
 class MigrationRunnerError(RuntimeError):
-    """Raised for expected runtime issues."""
+    """预期运行时问题时引发。"""
 
 
 class MigrationRunner:
@@ -34,7 +34,7 @@ class MigrationRunner:
         if migration.meta.timeout_sec is not None:
             return int(migration.meta.timeout_sec)
         if self.profile.timeout_sec is None:
-            raise MigrationRunnerError("No timeout configured for migration execution")
+            raise MigrationRunnerError("未为迁移执行配置超时时间")
         return int(self.profile.timeout_sec)
 
     @contextlib.contextmanager
@@ -46,7 +46,8 @@ class MigrationRunner:
             conn.autocommit = False
             with conn.cursor() as cur:
                 cur.execute(
-                    sql.SQL("SET application_name = {}").format(sql.Literal(self.app_name))
+                    sql.SQL("SET application_name = {}").format(
+                        sql.Literal(self.app_name))
                 )
             yield conn
         finally:
@@ -80,7 +81,7 @@ class MigrationRunner:
                 target_reached = target
                 break
         if target and not target_reached:
-            raise MigrationRunnerError(f"Target migration {target} not found")
+            raise MigrationRunnerError(f"未找到目标迁移 {target}")
         return PlanResult(pending=pending, already_applied=already, target_reached=target_reached)
 
     def apply(self, target: Optional[str], non_interactive: bool = False) -> None:
@@ -89,7 +90,7 @@ class MigrationRunner:
             user = db.current_database_user(conn)
             pending = self._pending_for_apply(states, target)
             if not pending:
-                print("No pending migrations")
+                print("无待处理的迁移")
                 return
             self._confirm_execution(len(pending), "up", non_interactive)
             with db.advisory_lock(conn, self.profile.lock_key):
@@ -102,7 +103,7 @@ class MigrationRunner:
             user = db.current_database_user(conn)
             to_revert = self._pending_for_down(states, target)
             if not to_revert:
-                print("Nothing to rollback")
+                print("无需回滚")
                 return
             self._confirm_execution(len(to_revert), "down", non_interactive)
             with db.advisory_lock(conn, self.profile.lock_key):
@@ -114,20 +115,22 @@ class MigrationRunner:
             states = self._ensure(conn)
             targets = self._select_verifications(states, latest, migration_id)
             if not targets:
-                raise MigrationRunnerError("No migrations found for verification")
+                raise MigrationRunnerError("未找到需要验证的迁移")
             results: List[VerifyResult] = []
             for migration in targets:
                 ok, details = self._run_verify(conn, migration)
-                results.append(VerifyResult(migration_id=migration.migration_id, ok=ok, details=details))
+                results.append(VerifyResult(
+                    migration_id=migration.migration_id, ok=ok, details=details))
             return results
 
     def repair(self, migration_id: str, accept: bool) -> None:
         if not accept:
-            raise MigrationRunnerError("Checksum repair requires --accept-checksum")
+            raise MigrationRunnerError("校验和修复需要 --accept-checksum")
         with self.connect() as conn:
             self._ensure(conn)
             migration = self._find_migration(migration_id)
-            db.repair_checksum(conn, self.profile.schema, migration_id, migration.checksum)
+            db.repair_checksum(conn, self.profile.schema,
+                               migration_id, migration.checksum)
             conn.commit()
 
     def retry(self, migration_id: str, accept_checksum: bool, force: bool, non_interactive: bool) -> None:
@@ -137,33 +140,34 @@ class MigrationRunner:
             state = states.get(migration_id)
             if not state:
                 raise MigrationRunnerError(
-                    f"Migration {migration_id} not found in schema_migrations; cannot retry"
+                    f"迁移 {migration_id} 在 schema_migrations 中未找到；无法重试"
                 )
             if state.status == "applied":
-                print(f"Migration {migration_id} is already applied; nothing to retry")
+                print(f"迁移 {migration_id} 已经应用；无需重试")
                 return
             if state.status == "running" and not force:
                 raise MigrationRunnerError(
-                    f"Migration {migration_id} is currently marked running; use --force if you are certain it is safe"
+                    f"迁移 {migration_id} 当前标记为运行中；如果确认安全，请使用 --force"
                 )
             if state.status == "running" and force:
                 print(
-                    f"Warning: forcing retry for migration {migration_id} while status is running; ensure no other process is active"
+                    f"警告: 强制重试迁移 {migration_id}，其状态为运行中；请确保没有其他进程正在活动"
                 )
             if state.checksum != migration.checksum:
                 if not accept_checksum:
                     raise MigrationRunnerError(
-                        "Migration checksum differs from filesystem; rerun with --accept-checksum to repair"
+                        "迁移校验和与文件系统不同；使用 --accept-checksum 重新运行以修复"
                     )
-                db.repair_checksum(conn, self.profile.schema, migration_id, migration.checksum)
+                db.repair_checksum(conn, self.profile.schema,
+                                   migration_id, migration.checksum)
                 conn.commit()
             message = (
-                f"Reset migration {migration_id} to retry? This will mark it as reverted and re-run pending migrations up to it."
+                f"重置迁移 {migration_id} 以重试？这将将其标记为已回滚，并重新运行到该迁移的待处理迁移。"
             )
             self._confirm_action(
                 message,
                 non_interactive,
-                action_description=f"Reset status for {migration_id} and retry",
+                action_description=f"重置 {migration_id} 的状态并重试",
             )
             db.update_status_fields(
                 conn,
@@ -189,21 +193,21 @@ class MigrationRunner:
             state = states.get(migration_id)
             if not state:
                 raise MigrationRunnerError(
-                    f"Migration {migration_id} not found in schema_migrations; cannot reset"
+                    f"迁移 {migration_id} 在 schema_migrations 中未找到；无法重置"
                 )
-            action = "delete" if delete else "reset"
+            action = "删除" if delete else "重置"
             message = (
-                f"About to {action} failure record for {migration_id}. This does not run any migrations. Proceed?"
+                f"即将{action}迁移 {migration_id} 的失败记录。这不会运行任何迁移。是否继续？"
             )
             self._confirm_action(
                 message,
                 non_interactive,
-                action_description=("Delete record" if delete else "Reset failed status"),
+                action_description=("删除记录" if delete else "重置失败状态"),
             )
             if delete:
                 db.delete_state(conn, self.profile.schema, migration_id)
                 conn.commit()
-                print(f"Removed migration {migration_id} from schema_migrations")
+                print(f"已从 schema_migrations 中移除迁移 {migration_id}")
             else:
                 db.update_status_fields(
                     conn,
@@ -216,7 +220,7 @@ class MigrationRunner:
                     verify_ok=None,
                 )
                 conn.commit()
-                print(f"Reset migration {migration_id} status to reverted")
+                print(f"已将迁移 {migration_id} 状态重置为已回滚")
 
     # --- helpers ---
 
@@ -224,7 +228,7 @@ class MigrationRunner:
         for migration in self.migrations:
             if migration.migration_id == migration_id:
                 return migration
-        raise MigrationRunnerError(f"Migration {migration_id} not found in filesystem")
+        raise MigrationRunnerError(f"迁移 {migration_id} 在文件系统中未找到")
 
     def _pending_for_apply(self, states: Dict[str, MigrationState], target: Optional[str]) -> List[MigrationDefinition]:
         pending: List[MigrationDefinition] = []
@@ -235,18 +239,20 @@ class MigrationRunner:
             if state:
                 if state.checksum != migration.checksum:
                     raise MigrationRunnerError(
-                        f"Migration {migration.migration_id} checksum mismatch; run repair before applying"
+                        f"迁移 {migration.migration_id} 校验和不匹配；在应用前运行 repair"
                     )
                 if state.status == "running":
-                    raise MigrationRunnerError(f"Migration {migration.migration_id} is marked as running")
+                    raise MigrationRunnerError(
+                        f"迁移 {migration.migration_id} 标记为运行中")
                 if state.status == "failed":
-                    raise MigrationRunnerError(f"Migration {migration.migration_id} failed previously; investigate")
+                    raise MigrationRunnerError(
+                        f"迁移 {migration.migration_id} 之前失败；请调查")
                 if state.status == "applied":
                     continue
             self._validate_tags(migration)
             pending.append(migration)
         if target and (not pending or pending[-1].migration_id != target):
-            raise MigrationRunnerError(f"Target migration {target} not reachable")
+            raise MigrationRunnerError(f"目标迁移 {target} 不可达")
         self._validate_dependencies(states, pending)
         return pending
 
@@ -262,11 +268,11 @@ class MigrationRunner:
                 seen_target = True
                 break
         if not seen_target:
-            raise MigrationRunnerError(f"Target migration {target} not yet applied; cannot rollback")
+            raise MigrationRunnerError(f"目标迁移 {target} 尚未应用；无法回滚")
         for migration in pending:
             if migration.meta.reversible is False or not migration.down_sql.read_text(encoding="utf-8").strip():
                 raise MigrationRunnerError(
-                    f"Migration {migration.migration_id} is marked irreversible; cannot rollback"
+                    f"迁移 {migration.migration_id} 标记为不可逆；无法回滚"
                 )
             self._validate_tags(migration)
         return pending
@@ -275,22 +281,24 @@ class MigrationRunner:
         self, states: Dict[str, MigrationState], latest: bool, migration_id: Optional[str]
     ) -> List[MigrationDefinition]:
         if latest:
-            applied = [m for m in self.migrations if states.get(m.migration_id, None) and states[m.migration_id].status == "applied"]
+            applied = [m for m in self.migrations if states.get(
+                m.migration_id, None) and states[m.migration_id].status == "applied"]
             if not applied:
-                raise MigrationRunnerError("No applied migrations to verify")
+                raise MigrationRunnerError("无已应用的迁移可验证")
             return [applied[-1]] if applied[-1].verify_sql else []
         if migration_id:
             migration = self._find_migration(migration_id)
             if not migration.verify_sql:
-                raise MigrationRunnerError(f"Migration {migration_id} does not have verify.sql")
+                raise MigrationRunnerError(f"迁移 {migration_id} 没有 verify.sql")
             return [migration]
         with_verify = [m for m in self.migrations if m.verify_sql]
         return with_verify
 
     def _run_verify(self, conn: psycopg.Connection, migration: MigrationDefinition) -> Tuple[bool, Optional[str]]:
-        sql_text = migration.verify_sql.read_text(encoding="utf-8") if migration.verify_sql else ""
+        sql_text = migration.verify_sql.read_text(
+            encoding="utf-8") if migration.verify_sql else ""
         if not sql_text:
-            return False, "No verify.sql provided"
+            return False, "未提供 verify.sql"
         timeout = self._timeout_for(migration)
         try:
             with conn.cursor() as cur:
@@ -305,8 +313,9 @@ class MigrationRunner:
 
     def _confirm_execution(self, count: int, direction: str, non_interactive: bool) -> None:
         env = self.profile.app_env or self.profile.name or "current"
-        message = f"About to run {count} migration(s) {direction} in environment {env}."
-        self._confirm_action(message, non_interactive, action_description=f"Apply {count} migration(s) {direction}")
+        message = f"即将在环境 {env} 中{direction}运行 {count} 个迁移。"
+        self._confirm_action(message, non_interactive,
+                             action_description=f"应用 {count} 个迁移 ({direction})")
 
     def _confirm_action(
         self,
@@ -321,19 +330,19 @@ class MigrationRunner:
             return
         if non_interactive or not self.profile.interactive:
             if self.profile.confirm_prod and not self.confirm_override:
-                raise MigrationRunnerError("Production execution requires --confirm-prod in non-interactive mode")
+                raise MigrationRunnerError("生产环境执行在非交互模式下需要 --confirm-prod")
             return
         if self.profile.confirm_prod:
-            prompt = f"{message} Type the database schema name to confirm: "
+            prompt = f"{message} 输入数据库模式名称以确认: "
             response = input(prompt)
             if response.strip() != self.profile.schema:
-                raise MigrationRunnerError("Confirmation failed; aborting")
+                raise MigrationRunnerError("确认失败；中止")
         else:
             description = action_description or message
-            prompt = f"{description}? [y/N]: "
+            prompt = f"{description}? [是/否]: "
             response = input(prompt)
-            if response.strip().lower() not in {"y", "yes"}:
-                raise MigrationRunnerError("User aborted execution")
+            if response.strip().lower() not in {"y", "yes", "是"}:
+                raise MigrationRunnerError("用户中止执行")
 
     def _validate_tags(self, migration: MigrationDefinition) -> None:
         allowed = set(self.profile.allow_tags)
@@ -341,16 +350,17 @@ class MigrationRunner:
             tags = set(migration.meta.tags or [])
             if not tags.issubset(allowed):
                 raise MigrationRunnerError(
-                    f"Migration {migration.migration_id} has tags {tags} not allowed for this environment"
+                    f"迁移 {migration.migration_id} 的标签 {tags} 不允许在此环境中使用"
                 )
 
     def _validate_dependencies(self, states: Dict[str, MigrationState], migrations: Sequence[MigrationDefinition]) -> None:
-        applied = {mid for mid, state in states.items() if state.status == "applied"}
+        applied = {mid for mid, state in states.items()
+                   if state.status == "applied"}
         for migration in migrations:
             for required in migration.meta.requires:
                 if required not in applied and required not in {m.migration_id for m in migrations}:
                     raise MigrationRunnerError(
-                        f"Migration {migration.migration_id} requires {required} to be applied first"
+                        f"迁移 {migration.migration_id} 需要先应用 {required}"
                     )
 
     def _apply_single(self, conn: psycopg.Connection, migration: MigrationDefinition, applied_by: str) -> None:
@@ -359,7 +369,7 @@ class MigrationRunner:
         log_dir = self.profile.log_dir
         assert log_dir is not None
         with migration_log(log_dir, migration.migration_id) as (log_path, log):
-            log(f"-- Applying {migration.migration_id} --")
+            log(f"-- 正在应用 {migration.migration_id} --")
             db.set_status(
                 conn,
                 self.profile.schema,
@@ -375,10 +385,12 @@ class MigrationRunner:
                 self._execute_sql(conn, migration.up_sql, timeout, log)
                 verify_ok = True
                 if migration.verify_sql:
-                    verify_ok, verify_details = self._run_verify(conn, migration)
+                    verify_ok, verify_details = self._run_verify(
+                        conn, migration)
                     if not verify_ok and verify_details:
-                        log(f"verify.sql failed: {verify_details}")
-                        raise MigrationRunnerError(f"verify.sql failed for {migration.migration_id}: {verify_details}")
+                        log(f"verify.sql 失败: {verify_details}")
+                        raise MigrationRunnerError(
+                            f"{migration.migration_id} 的 verify.sql 失败: {verify_details}")
                 conn.commit()
                 self._run_hooks(migration.meta.post_hooks, log)
                 duration = int((time.monotonic() - start) * 1000)
@@ -394,7 +406,7 @@ class MigrationRunner:
                     log_ref=str(log_path),
                 )
                 conn.commit()
-                log("Migration applied successfully")
+                log("迁移成功应用")
             except Exception as exc:  # noqa: BLE001
                 conn.rollback()
                 duration = int((time.monotonic() - start) * 1000)
@@ -410,7 +422,7 @@ class MigrationRunner:
                     log_ref=str(log_path),
                 )
                 conn.commit()
-                log(f"Migration failed: {exc}")
+                log(f"迁移失败: {exc}")
                 raise MigrationRunnerError(str(exc)) from exc
 
     def _revert_single(self, conn: psycopg.Connection, migration: MigrationDefinition, applied_by: str) -> None:
@@ -419,7 +431,7 @@ class MigrationRunner:
         log_dir = self.profile.log_dir
         assert log_dir is not None
         with migration_log(log_dir, migration.migration_id + "_down") as (log_path, log):
-            log(f"-- Reverting {migration.migration_id} --")
+            log(f"-- 正在回滚 {migration.migration_id} --")
             db.set_status(
                 conn,
                 self.profile.schema,
@@ -448,7 +460,7 @@ class MigrationRunner:
                     log_ref=str(log_path),
                 )
                 conn.commit()
-                log("Migration reverted successfully")
+                log("迁移成功回滚")
             except Exception as exc:  # noqa: BLE001
                 conn.rollback()
                 duration = int((time.monotonic() - start) * 1000)
@@ -464,16 +476,16 @@ class MigrationRunner:
                     log_ref=str(log_path),
                 )
                 conn.commit()
-                log(f"Rollback failed: {exc}")
+                log(f"回滚失败: {exc}")
                 raise MigrationRunnerError(str(exc)) from exc
 
     def _execute_sql(self, conn: psycopg.Connection, path: Path, timeout: int, log) -> None:
         sql_text = path.read_text(encoding="utf-8")
         if not sql_text.strip():
-            log(f"No SQL to execute in {path}")
+            log(f"在 {path} 中没有要执行的 SQL")
             return
         timeout_ms = max(timeout, 0) * 1000
-        log(f"Executing {path.name} with timeout {timeout}s")
+        log(f"正在执行 {path.name}，超时时间 {timeout} 秒")
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT set_config('statement_timeout', %s, true)",
@@ -483,9 +495,8 @@ class MigrationRunner:
 
     def _run_hooks(self, hooks: Sequence[str], log) -> None:
         for hook in hooks:
-            log(f"Running hook: {hook}")
+            log(f"正在运行钩子: {hook}")
             try:
                 subprocess.run(hook, shell=True, check=True)
             except subprocess.CalledProcessError as exc:
-                raise MigrationRunnerError(f"Hook failed: {hook}") from exc
-
+                raise MigrationRunnerError(f"钩子失败: {hook}") from exc

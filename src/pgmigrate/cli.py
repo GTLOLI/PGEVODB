@@ -1,4 +1,4 @@
-"""Command line interface for the migration tool."""
+"""数据库迁移工具的命令行接口。"""
 from __future__ import annotations
 
 import argparse
@@ -13,69 +13,77 @@ from .loader import MigrationFormatError
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="migrate", description="PostgreSQL migration management tool")
-    parser.add_argument("--config", default="migrate.yaml", help="Path to configuration file")
-    parser.add_argument("--env", dest="env", help="Profile to use from configuration")
-    parser.add_argument("--dsn", dest="dsn", help="Override DSN")
-    parser.add_argument("--log-dir", dest="log_dir", help="Override log directory")
-    parser.add_argument("--migrations-dir", dest="migrations_dir", help="Override migrations directory")
-    parser.add_argument("--timeout-sec", dest="timeout_sec", type=int, help="Override statement timeout in seconds")
+    parser = argparse.ArgumentParser(
+        prog="migrate", description="PostgreSQL 数据库迁移管理工具")
+    parser.add_argument("--config", default="migrate.yaml", help="配置文件路径")
+    parser.add_argument("--env", dest="env", help="使用的配置环境")
+    parser.add_argument("--dsn", dest="dsn", help="覆盖 DSN 配置")
+    parser.add_argument("--log-dir", dest="log_dir", help="覆盖日志目录")
+    parser.add_argument("--migrations-dir",
+                        dest="migrations_dir", help="覆盖迁移文件目录")
+    parser.add_argument("--timeout-sec", dest="timeout_sec",
+                        type=int, help="覆盖语句超时时间（秒）")
     parser.add_argument(
         "--non-interactive",
         dest="non_interactive",
         action="store_true",
-        help="Disable interactive confirmations",
+        help="禁用交互式确认",
     )
     parser.add_argument(
         "--confirm-prod",
         dest="confirm_prod",
         action="store_true",
-        help="Explicitly confirm production execution (bypass interactive prompt)",
+        help="明确确认生产环境执行（跳过交互式提示）",
     )
 
     sub = parser.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("status", help="Show current migration status")
+    sub.add_parser("status", help="显示当前迁移状态")
 
-    plan = sub.add_parser("plan", help="Preview pending migrations")
-    plan.add_argument("--to", dest="target", help="Target migration id")
+    plan = sub.add_parser("plan", help="预览待执行的迁移")
+    plan.add_argument("--to", dest="target", help="目标迁移 ID")
 
-    up = sub.add_parser("up", help="Apply pending migrations")
-    up.add_argument("--to", dest="target", help="Target migration id")
+    up = sub.add_parser("up", help="执行待处理的迁移")
+    up.add_argument("--to", dest="target", help="目标迁移 ID")
 
-    down = sub.add_parser("down", help="Rollback migrations")
-    down.add_argument("--to", dest="target", required=True, help="Target migration id to rollback to (inclusive)")
+    down = sub.add_parser("down", help="回滚迁移")
+    down.add_argument("--to", dest="target", required=True,
+                      help="回滚到的目标迁移 ID（包含）")
 
-    verify = sub.add_parser("verify", help="Run verification scripts")
+    verify = sub.add_parser("verify", help="运行验证脚本")
     verify_mode = verify.add_mutually_exclusive_group()
-    verify_mode.add_argument("--latest", action="store_true", help="Verify only the latest applied migration")
-    verify_mode.add_argument("--id", dest="migration_id", help="Verify a specific migration")
+    verify_mode.add_argument(
+        "--latest", action="store_true", help="仅验证最新应用的迁移")
+    verify_mode.add_argument("--id", dest="migration_id", help="验证指定的迁移")
 
-    repair = sub.add_parser("repair", help="Repair checksum for a migration")
-    repair.add_argument("--accept-checksum", dest="migration_id", required=True, help="Migration id to repair")
+    repair = sub.add_parser("repair", help="修复迁移的校验和")
+    repair.add_argument("--accept-checksum",
+                        dest="migration_id", required=True, help="要修复的迁移 ID")
 
-    retry = sub.add_parser("retry", help="Retry a failed migration")
-    retry.add_argument("--id", dest="migration_id", required=True, help="Migration id to retry")
+    retry = sub.add_parser("retry", help="重试失败的迁移")
+    retry.add_argument("--id", dest="migration_id",
+                       required=True, help="要重试的迁移 ID")
     retry.add_argument(
         "--accept-checksum",
         dest="accept_checksum",
         action="store_true",
-        help="Repair checksum automatically when filesystem differs",
+        help="当文件系统不同时自动修复校验和",
     )
     retry.add_argument(
         "--force",
         dest="force",
         action="store_true",
-        help="Override running status check (use with caution)",
+        help="覆盖运行状态检查（谨慎使用）",
     )
 
-    reset_failed = sub.add_parser("reset-failed", help="Reset or delete failed migration records")
-    reset_failed.add_argument("--id", dest="migration_id", required=True, help="Migration id to reset")
+    reset_failed = sub.add_parser("reset-failed", help="重置或删除失败的迁移记录")
+    reset_failed.add_argument(
+        "--id", dest="migration_id", required=True, help="要重置的迁移 ID")
     reset_failed.add_argument(
         "--delete",
         dest="delete",
         action="store_true",
-        help="Delete the migration entry instead of marking it reverted",
+        help="删除迁移记录而不是标记为已回滚",
     )
 
     return parser
@@ -85,7 +93,8 @@ def _load_profile(args: argparse.Namespace) -> ProfileConfig:
     config_path = Path(args.config).resolve()
     config = load_config(config_path)
     log_dir = Path(args.log_dir).resolve() if args.log_dir else None
-    migrations_dir = Path(args.migrations_dir).resolve() if args.migrations_dir else None
+    migrations_dir = Path(args.migrations_dir).resolve(
+    ) if args.migrations_dir else None
     profile = resolve_profile(
         config,
         profile_name=args.env,
@@ -100,21 +109,22 @@ def _load_profile(args: argparse.Namespace) -> ProfileConfig:
 
 def run_status(runner: MigrationRunner) -> int:
     migrations, states = runner.status()
-    applied_ids = {mid for mid, state in states.items() if state.status == "applied"}
+    applied_ids = {mid for mid, state in states.items()
+                   if state.status == "applied"}
     pending = [m for m in migrations if m.migration_id not in applied_ids]
-    print(f"Total migrations: {len(migrations)}")
-    print(f"Applied: {len(applied_ids)}")
+    print(f"总迁移数: {len(migrations)}")
+    print(f"已应用: {len(applied_ids)}")
     if pending:
-        print("Pending:")
+        print("待处理:")
         for migration in pending:
             state = states.get(migration.migration_id)
             status = state.status if state else "pending"
             print(f"  - {migration.migration_id} [{status}]")
     else:
-        print("No pending migrations")
+        print("无待处理的迁移")
     failed = [s for s in states.values() if s.status == "failed"]
     if failed:
-        print("Failed migrations:")
+        print("失败的迁移:")
         for state in failed:
             print(f"  - {state.migration_id} (checksum={state.checksum})")
     return 0
@@ -123,13 +133,13 @@ def run_status(runner: MigrationRunner) -> int:
 def run_plan(runner: MigrationRunner, target: Optional[str]) -> int:
     plan = runner.plan_up(target)
     if not plan.pending:
-        print("No pending migrations")
+        print("无待处理的迁移")
         return 0
-    print("Migrations to apply:")
+    print("将要应用的迁移:")
     for migration in plan.pending:
         tags = ",".join(migration.meta.tags) if migration.meta.tags else "-"
-        reversible = "yes" if migration.meta.reversible else "no"
-        print(f"  - {migration.migration_id} [tags={tags} reversible={reversible}]")
+        reversible = "是" if migration.meta.reversible else "否"
+        print(f"  - {migration.migration_id} [标签={tags} 可回滚={reversible}]")
     return 0
 
 
@@ -154,7 +164,7 @@ def run_verify(runner: MigrationRunner, latest: bool, migration_id: Optional[str
 
 def run_repair(runner: MigrationRunner, migration_id: str) -> int:
     runner.repair(migration_id=migration_id, accept=True)
-    print(f"Checksum repaired for {migration_id}")
+    print(f"已修复 {migration_id} 的校验和")
     return 0
 
 
@@ -223,9 +233,9 @@ def main(argv: Optional[list[str]] = None) -> int:
                 args.delete,
                 args.non_interactive,
             )
-        parser.error("Unknown command")
+        parser.error("未知命令")
     except (ConfigError, MigrationRunnerError, DatabaseError, MigrationFormatError) as exc:
-        print(f"Error: {exc}", file=sys.stderr)
+        print(f"错误: {exc}", file=sys.stderr)
         return 1
 
     return 0

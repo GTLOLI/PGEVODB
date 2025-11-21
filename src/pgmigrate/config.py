@@ -1,4 +1,4 @@
-"""Configuration loading for the PostgreSQL migration tool."""
+"""PostgreSQL 迁移工具的配置加载。"""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -12,7 +12,7 @@ import yaml
 
 @dataclass
 class ProfileConfig:
-    """Effective configuration for a single profile."""
+    """单个 profile 的有效配置。"""
 
     name: str
     dsn: str
@@ -29,7 +29,7 @@ class ProfileConfig:
 
 @dataclass
 class GlobalConfig:
-    """Raw configuration loaded from YAML."""
+    """从 YAML 加载的原始配置。"""
 
     profiles: Dict[str, ProfileConfig]
     default_profile: str
@@ -37,7 +37,7 @@ class GlobalConfig:
 
 
 class ConfigError(RuntimeError):
-    """Raised when the configuration file is invalid."""
+    """当配置文件无效时引发。"""
 
 
 def _path_from(value: Optional[str], base_dir: Path) -> Optional[Path]:
@@ -47,17 +47,17 @@ def _path_from(value: Optional[str], base_dir: Path) -> Optional[Path]:
 
 
 def load_config(path: Path) -> GlobalConfig:
-    """Load and validate the migrate.yaml file."""
+    """加载和验证 migrate.yaml 文件。"""
 
     if not path.exists():
-        raise ConfigError(f"Configuration file not found: {path}")
+        raise ConfigError(f"配置文件未找到: {path}")
 
     with path.open("r", encoding="utf-8") as fh:
         raw = yaml.safe_load(fh) or {}
 
     profiles_raw = raw.get("profiles") or {}
     if not profiles_raw:
-        raise ConfigError("No profiles defined in configuration")
+        raise ConfigError("配置中未定义 profiles")
 
     profiles: Dict[str, ProfileConfig] = {}
     base_dir = path.parent
@@ -66,7 +66,7 @@ def load_config(path: Path) -> GlobalConfig:
 
     for name, data in profiles_raw.items():
         if "dsn" not in data:
-            raise ConfigError(f"Profile '{name}' missing 'dsn'")
+            raise ConfigError(f"Profile '{name}' 缺少 'dsn'")
 
         profile_kwargs = {
             "name": name,
@@ -76,7 +76,8 @@ def load_config(path: Path) -> GlobalConfig:
             "confirm_prod": bool(data.get("confirm_prod", global_defaults.get("confirm_prod", False))),
             "timeout_sec": data.get("timeout_sec", global_defaults.get("timeout_sec")),
             "migrations_dir": _path_from(
-                data.get("migrations_dir", global_defaults.get("migrations_dir", "./migrations")),
+                data.get("migrations_dir", global_defaults.get(
+                    "migrations_dir", "./migrations")),
                 base_dir,
             ),
             "log_dir": _path_from(
@@ -92,9 +93,9 @@ def load_config(path: Path) -> GlobalConfig:
 
     default_profile = raw.get("default_profile")
     if not default_profile:
-        raise ConfigError("'default_profile' must be defined in configuration")
+        raise ConfigError("配置中必须定义 'default_profile'")
     if default_profile not in profiles:
-        raise ConfigError(f"Default profile '{default_profile}' is not defined in profiles")
+        raise ConfigError(f"默认 profile '{default_profile}' 未在 profiles 中定义")
 
     return GlobalConfig(
         profiles=profiles,
@@ -112,11 +113,11 @@ def resolve_profile(
     timeout_override: Optional[int],
     interactive_override: Optional[bool],
 ) -> ProfileConfig:
-    """Resolve the effective profile taking CLI overrides into account."""
+    """解析有效的 profile，考虑 CLI 覆盖。"""
 
     if profile_name:
         if profile_name not in config.profiles:
-            raise ConfigError(f"Profile '{profile_name}' not found")
+            raise ConfigError(f"Profile '{profile_name}' 未找到")
         profile = config.profiles[profile_name]
     else:
         profile = config.profiles[config.default_profile]
@@ -155,7 +156,7 @@ def resolve_profile(
     if effective.lock_key is None:
         lock_key = config.global_overrides.get("lock_key")
         if lock_key is None:
-            raise ConfigError("'lock_key' must be specified globally or per profile")
+            raise ConfigError("必须在全局或每个 profile 中指定 'lock_key'")
         effective.lock_key = int(lock_key)
 
     # Allow overriding via environment variables for DSN
