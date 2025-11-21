@@ -85,6 +85,50 @@ python -m pgmigrate.cli [全局参数] <命令> [命令参数]
 * **全局锁**：使用 `pg_try_advisory_lock` 防止多进程并发迁移。
 * **日志与验证**：每次执行生成独立日志文件，支持可选的 `verify.sql` 校验。
 * **安全回退**：对不可逆迁移在回退时硬性阻断。
+* **SQL 文件引用**：支持在 `up.sql`/`down.sql` 中使用 `@include` 指令引用其他 SQL 文件，便于拆分大型迁移。
+
+### SQL 文件引用功能
+
+为了更好地组织和管理复杂的迁移脚本，PGEVODB 支持在 `up.sql` 和 `down.sql` 中使用 `@include` 指令引用其他 SQL 文件。
+
+**使用语法：**
+```sql
+-- @include 相对路径/文件名.sql
+```
+
+**示例目录结构：**
+```
+migrations/2025-01-01T10-00-00__initial_schema/
+├── up.sql              # 主文件，包含 @include 指令
+├── down.sql
+├── verify.sql
+├── meta.yaml
+└── sql/                # 拆分的 SQL 文件
+    ├── 01_create_users.sql
+    ├── 02_create_products.sql
+    └── 03_create_orders.sql
+```
+
+**up.sql 示例：**
+```sql
+-- 按顺序创建表
+-- @include sql/01_create_users.sql
+-- @include sql/02_create_products.sql
+-- @include sql/03_create_orders.sql
+
+-- 添加表注释
+COMMENT ON TABLE users IS '用户表';
+COMMENT ON TABLE products IS '产品表';
+```
+
+**特性：**
+- ✅ 支持递归引用（被引用的文件也可以包含 `@include` 指令）
+- ✅ 自动检测循环引用，防止无限递归
+- ✅ 路径相对于当前 SQL 文件所在目录
+- ✅ 在日志中显示引用的文件列表
+- ✅ 引用的文件内容会在执行前展开，作为一个完整的 SQL 脚本执行
+
+**完整示例：** 参见 `migrations/2025-01-01T10-00-00__example_multi_tables/` 目录
 
 ### 失败处理命令
 

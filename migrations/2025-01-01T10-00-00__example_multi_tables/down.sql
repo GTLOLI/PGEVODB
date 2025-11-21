@@ -1,0 +1,6 @@
+-- 回滚订单相关表
+DROP TABLE IF EXISTS order_items CASCADE;
+DROP TABLE IF EXISTS orders CASCADE;
+
+-- 回滚产品表
+DROP TABLE IF EXISTS products CASCADE;

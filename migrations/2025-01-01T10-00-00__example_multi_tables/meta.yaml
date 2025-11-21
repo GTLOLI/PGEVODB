@@ -1,0 +1,6 @@
+timeout_sec: 300
+reversible: true
+tags:
+  - schema
+  - example
+online_safe: false

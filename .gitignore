@@ -1,0 +1,77 @@
+# Python 编译文件
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# 分发 / 打包
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# 虚拟环境
+venv/
+ENV/
+env/
+.venv
+
+# IDE 配置文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 测试覆盖率
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+
+# 迁移日志目录（生成的日志文件）
+.migrate-logs/
+*.log
+
+# 数据库连接配置（如果包含敏感信息）
+# migrate.yaml  # 根据需要取消注释
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre 类型检查
+.pyre/
+
+# 操作系统生成的文件
+Thumbs.db
+.DS_Store

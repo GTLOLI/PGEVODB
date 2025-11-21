@@ -479,8 +479,54 @@ class MigrationRunner:
                 log(f"回滚失败: {exc}")
                 raise MigrationRunnerError(str(exc)) from exc
 
+    def _process_sql_includes(self, sql_path: Path, log, processed_files: Optional[set] = None) -> str:
+        """处理 SQL 文件中的 @include 指令，递归展开引用的文件。"""
+        if processed_files is None:
+            processed_files = set()
+
+        # 防止循环引用
+        abs_path = sql_path.resolve()
+        if abs_path in processed_files:
+            raise MigrationRunnerError(f"检测到循环引用: {sql_path}")
+        processed_files.add(abs_path)
+
+        sql_text = sql_path.read_text(encoding="utf-8")
+        lines = sql_text.split("\n")
+        result_lines = []
+
+        import re
+        include_pattern = re.compile(r'^\s*--\s*@include\s+(.+?)\s*$')
+
+        for line in lines:
+            match = include_pattern.match(line)
+            if match:
+                include_file = match.group(1).strip()
+                # 相对于当前 SQL 文件所在目录解析路径
+                include_path = (sql_path.parent / include_file).resolve()
+
+                if not include_path.exists():
+                    raise MigrationRunnerError(
+                        f"引用的文件不存在: {include_file} (完整路径: {include_path})")
+
+                if not include_path.is_file():
+                    raise MigrationRunnerError(f"引用的路径不是文件: {include_file}")
+
+                log(f"  └─ 引用文件: {include_file}")
+                # 递归处理被引用的文件
+                included_content = self._process_sql_includes(
+                    include_path, log, processed_files)
+                result_lines.append(f"-- BEGIN INCLUDE: {include_file}")
+                result_lines.append(included_content)
+                result_lines.append(f"-- END INCLUDE: {include_file}")
+            else:
+                result_lines.append(line)
+
+        return "\n".join(result_lines)
+
     def _execute_sql(self, conn: psycopg.Connection, path: Path, timeout: int, log) -> None:
-        sql_text = path.read_text(encoding="utf-8")
+        # 处理 @include 指令
+        sql_text = self._process_sql_includes(path, log)
+
         if not sql_text.strip():
             log(f"在 {path} 中没有要执行的 SQL")
             return
